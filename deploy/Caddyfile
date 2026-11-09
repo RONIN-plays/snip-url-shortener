@@ -1,0 +1,7 @@
+# Caddy = reverse proxy that handles HTTPS automatically.
+# DOMAIN comes from .env.prod, e.g. "short.example.com"
+# No domain yet? Use  <your-vm-ip-with-dashes>.sslip.io  (e.g. 203-0-113-7.sslip.io) - free wildcard DNS.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy api:8000
+}

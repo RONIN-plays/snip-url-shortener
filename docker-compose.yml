@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shortener}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-shortener}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Schema files run (alphabetically) when the volume is first created.
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shortener}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # AOF persistence: the click queue (a Redis Stream) survives a Redis restart.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    image: urlshortner-app      # api and worker share one image (same code, different command)
+    env_file: .env
+    environment:
+      # Inside the compose network, hosts are the service names (db, redis),
+      # overriding the localhost URLs in .env (used by tests run on the host).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shortener}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-shortener}
+      REDIS_URL: redis://redis:6379/0
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}        # uvicorn worker processes
+      CACHE_ENABLED: ${CACHE_ENABLED:-true}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: urlshortner-app
+    command: ["python", "-m", "app.worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shortener}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-shortener}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Load generator: only started on demand (docker compose --profile load run k6 ...)
+  k6:
+    image: grafana/k6:0.55.0
+    profiles: ["load"]
+    entrypoint: ["k6"]
+    volumes:
+      - ./loadtest:/scripts
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:
