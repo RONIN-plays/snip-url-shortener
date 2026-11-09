@@ -238,7 +238,7 @@ First start creates the schema from [`migrations/`](migrations/). If you change 
 On any Linux VM (a small 1–2 vCPU instance is plenty):
 
 ```bash
-git clone https://github.com/<your-username>/<repo-name>.git && cd <repo-name>
+git clone https://github.com/RONIN-plays/snip-url-shortener.git && cd snip-url-shortener
 cp .env.prod.example .env.prod     # set DOMAIN + generate secrets: openssl rand -hex 32
 bash deploy/deploy.sh              # installs Docker if missing, builds, starts, waits for /ready
 ```
