@@ -1,0 +1,6 @@
+# Keep shell scripts and Docker files LF so they run on Linux servers even when cloned on Windows
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+Caddyfile text eol=lf
+*.png binary
